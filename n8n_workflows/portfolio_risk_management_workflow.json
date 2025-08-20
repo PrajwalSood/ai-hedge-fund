@@ -1,0 +1,342 @@
+{
+  "name": "AI Hedge Fund - Portfolio & Risk Management Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "/portfolio/analyze",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "pr1a2b3c-1111-2222-3333-444444444444",
+      "name": "Webhook - Portfolio Analysis",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "portfolio-analyze"
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "portfolio_data",
+              "value": "={{ JSON.stringify($json.body.portfolio || {}) }}"
+            },
+            {
+              "name": "tickers",
+              "value": "={{ $json.body.tickers || 'AAPL,MSFT,GOOGL' }}"
+            },
+            {
+              "name": "risk_tolerance",
+              "value": "={{ $json.body.risk_tolerance || 'moderate' }}"
+            },
+            {
+              "name": "analysis_date",
+              "value": "={{ $json.body.analysis_date || $now.toFormat('yyyy-MM-dd') }}"
+            },
+            {
+              "name": "lookback_days",
+              "value": "={{ $json.body.lookback_days || '252' }}"
+            },
+            {
+              "name": "ollama_model",
+              "value": "={{ $json.body.ollama_model || 'llama3.1:8b' }}"
+            },
+            {
+              "name": "ollama_host",
+              "value": "={{ $json.body.ollama_host || 'http://localhost:11434' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "pr2b3c4d-2222-3333-4444-555555555555",
+      "name": "Set Portfolio Parameters",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse and validate portfolio data\nconst portfolioData = JSON.parse($input.first().json.portfolio_data || '{}');\nconst tickers = $input.first().json.tickers.split(',').map(t => t.trim());\nconst riskTolerance = $input.first().json.risk_tolerance;\nconst analysisDate = $input.first().json.analysis_date;\nconst lookbackDays = parseInt($input.first().json.lookback_days);\n\n// Initialize default portfolio structure if not provided\nconst defaultPortfolio = {\n  cash: 100000,\n  margin_requirement: 0.5,\n  margin_used: 0.0,\n  positions: {},\n  realized_gains: {}\n};\n\n// Merge with provided portfolio data\nconst portfolio = {\n  ...defaultPortfolio,\n  ...portfolioData\n};\n\n// Ensure all tickers have position entries\ntickers.forEach(ticker => {\n  if (!portfolio.positions[ticker]) {\n    portfolio.positions[ticker] = {\n      long: 0,\n      short: 0,\n      long_cost_basis: 0.0,\n      short_cost_basis: 0.0,\n      short_margin_used: 0.0\n    };\n  }\n  if (!portfolio.realized_gains[ticker]) {\n    portfolio.realized_gains[ticker] = {\n      long: 0.0,\n      short: 0.0\n    };\n  }\n});\n\n// Set risk tolerance parameters\nconst riskParams = {\n  conservative: {\n    max_position_size: 0.10, // 10% max per position\n    max_sector_concentration: 0.25, // 25% max per sector\n    var_confidence: 0.99, // 99% VaR confidence\n    max_leverage: 1.0, // No leverage\n    rebalance_threshold: 0.05 // 5% drift threshold\n  },\n  moderate: {\n    max_position_size: 0.15, // 15% max per position\n    max_sector_concentration: 0.35, // 35% max per sector\n    var_confidence: 0.95, // 95% VaR confidence\n    max_leverage: 1.3, // 30% leverage allowed\n    rebalance_threshold: 0.08 // 8% drift threshold\n  },\n  aggressive: {\n    max_position_size: 0.25, // 25% max per position\n    max_sector_concentration: 0.50, // 50% max per sector\n    var_confidence: 0.90, // 90% VaR confidence\n    max_leverage: 2.0, // 100% leverage allowed\n    rebalance_threshold: 0.12 // 12% drift threshold\n  }\n};\n\nconst currentRiskParams = riskParams[riskTolerance] || riskParams.moderate;\n\nreturn {\n  portfolio,\n  tickers,\n  analysis_date: analysisDate,\n  lookback_days: lookbackDays,\n  risk_tolerance: riskTolerance,\n  risk_parameters: currentRiskParams,\n  ollama_model: $input.first().json.ollama_model,\n  ollama_host: $input.first().json.ollama_host\n};"
+      },
+      "id": "pr3c4d5e-3333-4444-5555-666666666666",
+      "name": "Initialize Portfolio Analysis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "pr4d5e6f-4444-5555-6666-777777777777",
+              "name": "currentTicker",
+              "type": "string",
+              "value": "={{ $json.tickers[$itemIndex] }}"
+            },
+            {
+              "id": "pr5e6f7g-5555-6666-7777-888888888888",
+              "name": "portfolioState",
+              "type": "object",
+              "value": "={{ $json }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "pr6f7g8h-6666-7777-8888-999999999999",
+      "name": "Split by Ticker for Risk Analysis",
+      "type": "n8n-nodes-base.itemLists",
+      "typeVersion": 3,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Calculate volatility and risk metrics for current ticker\nconst currentTicker = $input.first().json.currentTicker;\nconst portfolioState = $input.first().json.portfolioState;\nconst position = portfolioState.portfolio.positions[currentTicker];\n\n// Simulate historical price data (in real implementation, fetch from financial API)\nfunction generateHistoricalPrices(days = 252, startPrice = 100) {\n  const prices = [startPrice];\n  const dailyVol = 0.02; // 2% daily volatility\n  \n  for (let i = 1; i < days; i++) {\n    const randomShock = (Math.random() - 0.5) * 2 * dailyVol;\n    const drift = 0.0003; // Small positive drift\n    const newPrice = prices[i-1] * (1 + drift + randomShock);\n    prices.push(Math.max(newPrice, 1)); // Prevent negative prices\n  }\n  \n  return prices;\n}\n\nconst historicalPrices = generateHistoricalPrices(portfolioState.lookback_days);\nconst currentPrice = historicalPrices[historicalPrices.length - 1];\n\n// Calculate returns\nconst returns = [];\nfor (let i = 1; i < historicalPrices.length; i++) {\n  returns.push((historicalPrices[i] - historicalPrices[i-1]) / historicalPrices[i-1]);\n}\n\n// Calculate risk metrics\nconst meanReturn = returns.reduce((sum, r) => sum + r, 0) / returns.length;\nconst variance = returns.reduce((sum, r) => sum + Math.pow(r - meanReturn, 2), 0) / (returns.length - 1);\nconst volatility = Math.sqrt(variance);\nconst annualizedVol = volatility * Math.sqrt(252);\n\n// Calculate VaR (Value at Risk)\nconst sortedReturns = returns.sort((a, b) => a - b);\nconst varIndex = Math.floor((1 - portfolioState.risk_parameters.var_confidence) * returns.length);\nconst varReturn = sortedReturns[varIndex];\n\n// Calculate position value and exposure\nconst longValue = position.long * currentPrice;\nconst shortValue = position.short * currentPrice;\nconst netExposure = longValue - shortValue;\nconst grossExposure = longValue + shortValue;\n\n// Position-level VaR\nconst positionVar = Math.abs(netExposure * varReturn);\n\n// Calculate beta (simplified - using correlation with market)\nconst marketCorrelation = 0.7 + (Math.random() - 0.5) * 0.4; // Simulate correlation between 0.5 and 0.9\nconst marketVol = 0.15; // Assume 15% market volatility\nconst beta = (marketCorrelation * annualizedVol) / marketVol;\n\nconst riskMetrics = {\n  ticker: currentTicker,\n  current_price: currentPrice,\n  position: {\n    long_shares: position.long,\n    short_shares: position.short,\n    long_value: longValue,\n    short_value: shortValue,\n    net_exposure: netExposure,\n    gross_exposure: grossExposure\n  },\n  risk_measures: {\n    daily_volatility: volatility,\n    annualized_volatility: annualizedVol,\n    var_daily: varReturn,\n    position_var: positionVar,\n    beta: beta,\n    correlation_to_market: marketCorrelation\n  },\n  performance: {\n    mean_daily_return: meanReturn,\n    annualized_return: meanReturn * 252,\n    sharpe_ratio: meanReturn / volatility,\n    max_drawdown: Math.min(...returns) // Simplified max drawdown\n  }\n};\n\nreturn {\n  currentTicker,\n  portfolioState,\n  riskMetrics,\n  historicalPrices: historicalPrices.slice(-30) // Return last 30 days for charting\n};"
+      },
+      "id": "pr7g8h9i-7777-8888-9999-000000000000",
+      "name": "Calculate Individual Risk Metrics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "combineByPosition",
+        "options": {}
+      },
+      "id": "pr8h9i0j-8888-9999-0000-111111111111",
+      "name": "Merge Risk Analyses",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [
+        1340,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Calculate portfolio-level risk metrics\nconst allRiskMetrics = $input.all().map(item => item.json.riskMetrics);\nconst portfolioState = $input.first().json.portfolioState;\n\n// Calculate total portfolio value\nlet totalPortfolioValue = portfolioState.portfolio.cash;\nlet totalLongExposure = 0;\nlet totalShortExposure = 0;\nlet totalGrossExposure = 0;\nlet weightedVar = 0;\nlet weightedBeta = 0;\n\nallRiskMetrics.forEach(metrics => {\n  totalLongExposure += metrics.position.long_value;\n  totalShortExposure += metrics.position.short_value;\n  totalGrossExposure += metrics.position.gross_exposure;\n  totalPortfolioValue += metrics.position.net_exposure;\n  \n  // Weight VaR and Beta by position size\n  const weight = Math.abs(metrics.position.net_exposure) / Math.max(totalPortfolioValue, 1);\n  weightedVar += metrics.risk_measures.position_var * weight;\n  weightedBeta += metrics.risk_measures.beta * weight;\n});\n\nconst netExposure = totalLongExposure - totalShortExposure;\nconst leverage = totalGrossExposure / Math.max(totalPortfolioValue, 1);\n\n// Portfolio concentration analysis\nconst positionWeights = allRiskMetrics.map(metrics => ({\n  ticker: metrics.ticker,\n  weight: Math.abs(metrics.position.net_exposure) / Math.max(totalPortfolioValue, 1),\n  exposure: metrics.position.net_exposure\n}));\n\n// Check risk limit violations\nconst riskViolations = [];\npositionWeights.forEach(pos => {\n  if (pos.weight > portfolioState.risk_parameters.max_position_size) {\n    riskViolations.push({\n      type: 'position_size',\n      ticker: pos.ticker,\n      current: pos.weight,\n      limit: portfolioState.risk_parameters.max_position_size,\n      severity: pos.weight > portfolioState.risk_parameters.max_position_size * 1.5 ? 'high' : 'medium'\n    });\n  }\n});\n\nif (leverage > portfolioState.risk_parameters.max_leverage) {\n  riskViolations.push({\n    type: 'leverage',\n    current: leverage,\n    limit: portfolioState.risk_parameters.max_leverage,\n    severity: leverage > portfolioState.risk_parameters.max_leverage * 1.2 ? 'high' : 'medium'\n  });\n}\n\n// Calculate diversification metrics\nconst herfindahlIndex = positionWeights.reduce((sum, pos) => sum + Math.pow(pos.weight, 2), 0);\nconst effectiveNumPositions = 1 / herfindahlIndex;\n\n// Risk-adjusted returns\nconst portfolioReturn = allRiskMetrics.reduce((sum, metrics) => {\n  const weight = Math.abs(metrics.position.net_exposure) / Math.max(totalPortfolioValue, 1);\n  return sum + (metrics.performance.annualized_return * weight);\n}, 0);\n\nconst portfolioVol = Math.sqrt(allRiskMetrics.reduce((sum, metrics) => {\n  const weight = Math.abs(metrics.position.net_exposure) / Math.max(totalPortfolioValue, 1);\n  return sum + Math.pow(weight * metrics.risk_measures.annualized_volatility, 2);\n}, 0));\n\nconst portfolioSharpe = portfolioVol > 0 ? (portfolioReturn - 0.04) / portfolioVol : 0; // Assuming 4% risk-free rate\n\nconst portfolioAnalysis = {\n  timestamp: new Date().toISOString(),\n  analysis_period: {\n    date: portfolioState.analysis_date,\n    lookback_days: portfolioState.lookback_days\n  },\n  portfolio_summary: {\n    total_value: totalPortfolioValue,\n    cash: portfolioState.portfolio.cash,\n    long_exposure: totalLongExposure,\n    short_exposure: totalShortExposure,\n    net_exposure: netExposure,\n    gross_exposure: totalGrossExposure,\n    leverage: leverage,\n    number_of_positions: allRiskMetrics.length,\n    effective_positions: effectiveNumPositions\n  },\n  risk_metrics: {\n    portfolio_var: weightedVar,\n    portfolio_beta: weightedBeta,\n    portfolio_volatility: portfolioVol,\n    herfindahl_index: herfindahlIndex,\n    concentration_risk: herfindahlIndex > 0.25 ? 'high' : herfindahlIndex > 0.15 ? 'medium' : 'low'\n  },\n  performance_metrics: {\n    expected_return: portfolioReturn,\n    sharpe_ratio: portfolioSharpe,\n    information_ratio: portfolioSharpe * Math.sqrt(effectiveNumPositions), // Simplified IR\n    risk_adjusted_return: portfolioReturn / Math.max(portfolioVol, 0.01)\n  },\n  position_analysis: positionWeights,\n  individual_metrics: allRiskMetrics,\n  risk_violations: riskViolations,\n  risk_tolerance: portfolioState.risk_tolerance,\n  risk_parameters: portfolioState.risk_parameters\n};\n\nreturn portfolioAnalysis;"
+      },
+      "id": "pr9i0j1k-9999-0000-1111-222222222222",
+      "name": "Calculate Portfolio Risk Metrics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        1560,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.portfolioState.ollama_host }}/api/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "={{ $json.portfolioState.ollama_model }}"
+            },
+            {
+              "name": "prompt",
+              "value": "You are a portfolio risk manager analyzing the following portfolio:\n\nPortfolio Summary:\n- Total Value: ${{ $json.portfolio_summary.total_value.toFixed(0) }}\n- Leverage: {{ ($json.portfolio_summary.leverage * 100).toFixed(1) }}%\n- Number of Positions: {{ $json.portfolio_summary.number_of_positions }}\n- Risk Tolerance: {{ $json.risk_tolerance }}\n\nRisk Metrics:\n- Portfolio VaR: ${{ $json.risk_metrics.portfolio_var.toFixed(0) }}\n- Portfolio Beta: {{ $json.risk_metrics.portfolio_beta.toFixed(2) }}\n- Portfolio Volatility: {{ ($json.risk_metrics.portfolio_volatility * 100).toFixed(1) }}%\n- Concentration Risk: {{ $json.risk_metrics.concentration_risk }}\n\nRisk Violations: {{ $json.risk_violations.length }} violations found\n\nPerformance:\n- Sharpe Ratio: {{ $json.performance_metrics.sharpe_ratio.toFixed(2) }}\n- Expected Return: {{ ($json.performance_metrics.expected_return * 100).toFixed(1) }}%\n\nProvide a comprehensive risk assessment and recommendations in JSON format:\n{\n  \"overall_risk_rating\": \"low\" | \"medium\" | \"high\",\n  \"key_concerns\": [\"list of main risk concerns\"],\n  \"recommendations\": [\"list of specific recommendations\"],\n  \"position_adjustments\": [\"suggested position changes\"],\n  \"risk_summary\": \"brief overall assessment\"\n}\n\nFocus on practical risk management advice for a hedge fund portfolio."
+            },
+            {
+              "name": "stream",
+              "value": false
+            },
+            {
+              "name": "options",
+              "value": {
+                "temperature": 0.2,
+                "top_p": 0.8
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "pr0j1k2l-0000-1111-2222-333333333333",
+      "name": "Generate Risk Assessment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1780,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Combine quantitative analysis with AI risk assessment\nconst portfolioAnalysis = $input.first().json;\nconst aiAssessment = $input.first().json.response;\n\nlet riskAssessment = {\n  overall_risk_rating: 'medium',\n  key_concerns: ['Unable to parse AI assessment'],\n  recommendations: ['Review risk parameters'],\n  position_adjustments: ['Monitor positions closely'],\n  risk_summary: 'AI assessment unavailable'\n};\n\n// Parse AI response\ntry {\n  riskAssessment = JSON.parse(aiAssessment);\n} catch (error) {\n  console.log('Failed to parse AI risk assessment:', error.message);\n}\n\n// Generate rebalancing recommendations\nconst rebalanceRecommendations = [];\nportfolioAnalysis.position_analysis.forEach(position => {\n  const drift = Math.abs(position.weight - (1 / portfolioAnalysis.portfolio_summary.number_of_positions));\n  if (drift > portfolioAnalysis.risk_parameters.rebalance_threshold) {\n    const targetWeight = 1 / portfolioAnalysis.portfolio_summary.number_of_positions;\n    const currentValue = position.exposure;\n    const targetValue = portfolioAnalysis.portfolio_summary.total_value * targetWeight;\n    const adjustment = targetValue - currentValue;\n    \n    rebalanceRecommendations.push({\n      ticker: position.ticker,\n      current_weight: position.weight,\n      target_weight: targetWeight,\n      drift: drift,\n      adjustment_needed: adjustment,\n      action: adjustment > 0 ? 'buy' : 'sell',\n      priority: drift > portfolioAnalysis.risk_parameters.rebalance_threshold * 2 ? 'high' : 'medium'\n    });\n  }\n});\n\n// Calculate stress test scenarios\nconst stressTests = {\n  market_crash: {\n    scenario: '20% market decline',\n    portfolio_impact: portfolioAnalysis.portfolio_summary.total_value * -0.2 * portfolioAnalysis.risk_metrics.portfolio_beta,\n    var_multiple: 3.5\n  },\n  volatility_spike: {\n    scenario: 'Volatility doubles',\n    portfolio_impact: portfolioAnalysis.risk_metrics.portfolio_var * 2,\n    var_multiple: 2.0\n  },\n  liquidity_crisis: {\n    scenario: 'Liquidity constraints',\n    portfolio_impact: portfolioAnalysis.portfolio_summary.gross_exposure * -0.05,\n    var_multiple: 1.5\n  }\n};\n\nconst finalRiskReport = {\n  ...portfolioAnalysis,\n  ai_risk_assessment: riskAssessment,\n  rebalancing: {\n    recommendations: rebalanceRecommendations,\n    total_adjustments_needed: rebalanceRecommendations.length,\n    high_priority_adjustments: rebalanceRecommendations.filter(r => r.priority === 'high').length\n  },\n  stress_testing: stressTests,\n  action_items: [\n    ...riskAssessment.recommendations,\n    ...rebalanceRecommendations.filter(r => r.priority === 'high').map(r => \n      `${r.action.toUpperCase()} ${r.ticker}: Adjust by $${Math.abs(r.adjustment_needed).toFixed(0)}`\n    )\n  ],\n  risk_dashboard: {\n    overall_score: portfolioAnalysis.risk_violations.length === 0 ? \n      (riskAssessment.overall_risk_rating === 'low' ? 85 : \n       riskAssessment.overall_risk_rating === 'medium' ? 70 : 45) :\n      Math.max(30, 70 - (portfolioAnalysis.risk_violations.length * 15)),\n    health_indicators: {\n      leverage_ok: portfolioAnalysis.portfolio_summary.leverage <= portfolioAnalysis.risk_parameters.max_leverage,\n      concentration_ok: portfolioAnalysis.risk_metrics.concentration_risk !== 'high',\n      violations_ok: portfolioAnalysis.risk_violations.length === 0,\n      performance_ok: portfolioAnalysis.performance_metrics.sharpe_ratio > 0.5\n    }\n  }\n};\n\nreturn finalRiskReport;"
+      },
+      "id": "pr1k2l3m-1111-2222-3333-444444444444",
+      "name": "Compile Final Risk Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        2000,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json, null, 2) }}",
+        "options": {}
+      },
+      "id": "pr2l3m4n-2222-3333-4444-555555555555",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        2220,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - Portfolio Analysis": {
+      "main": [
+        [
+          {
+            "node": "Set Portfolio Parameters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Portfolio Parameters": {
+      "main": [
+        [
+          {
+            "node": "Initialize Portfolio Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Initialize Portfolio Analysis": {
+      "main": [
+        [
+          {
+            "node": "Split by Ticker for Risk Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split by Ticker for Risk Analysis": {
+      "main": [
+        [
+          {
+            "node": "Calculate Individual Risk Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Individual Risk Metrics": {
+      "main": [
+        [
+          {
+            "node": "Merge Risk Analyses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Risk Analyses": {
+      "main": [
+        [
+          {
+            "node": "Calculate Portfolio Risk Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Portfolio Risk Metrics": {
+      "main": [
+        [
+          {
+            "node": "Generate Risk Assessment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Risk Assessment": {
+      "main": [
+        [
+          {
+            "node": "Compile Final Risk Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compile Final Risk Report": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z",
+      "id": "portfolio-risk",
+      "name": "Portfolio Risk"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "versionId": "1"
+}

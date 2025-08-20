@@ -1,0 +1,542 @@
+{
+  "name": "AI Hedge Fund - Main Analysis Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "/hedge-fund/analyze",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "c8a4d5b0-1234-4567-8901-234567890123",
+      "name": "Webhook - Start Analysis",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "hedge-fund-analyze"
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "tickers",
+              "value": "={{ $json.body.tickers || 'AAPL,MSFT,GOOGL' }}"
+            },
+            {
+              "name": "start_date",
+              "value": "={{ $json.body.start_date || $now.minus({months: 3}).toFormat('yyyy-MM-dd') }}"
+            },
+            {
+              "name": "end_date",
+              "value": "={{ $json.body.end_date || $now.toFormat('yyyy-MM-dd') }}"
+            },
+            {
+              "name": "initial_cash",
+              "value": "={{ $json.body.initial_cash || '100000' }}"
+            },
+            {
+              "name": "margin_requirement",
+              "value": "={{ $json.body.margin_requirement || '0.5' }}"
+            },
+            {
+              "name": "selected_analysts",
+              "value": "={{ $json.body.selected_analysts || 'warren_buffett,charlie_munger,michael_burry' }}"
+            },
+            {
+              "name": "show_reasoning",
+              "value": "={{ $json.body.show_reasoning || 'false' }}"
+            },
+            {
+              "name": "ollama_model",
+              "value": "={{ $json.body.ollama_model || 'llama3.1:8b' }}"
+            },
+            {
+              "name": "ollama_host",
+              "value": "={{ $json.body.ollama_host || 'http://localhost:11434' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d9b5e6c1-2345-5678-9012-345678901234",
+      "name": "Set Configuration",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse tickers and selected analysts\nconst tickers = $input.first().json.tickers.split(',').map(t => t.trim());\nconst selectedAnalysts = $input.first().json.selected_analysts.split(',').map(a => a.trim());\n\n// Initialize portfolio structure\nconst portfolio = {\n  cash: parseFloat($input.first().json.initial_cash),\n  margin_requirement: parseFloat($input.first().json.margin_requirement),\n  margin_used: 0.0,\n  positions: {},\n  realized_gains: {}\n};\n\n// Initialize positions for each ticker\ntickers.forEach(ticker => {\n  portfolio.positions[ticker] = {\n    long: 0,\n    short: 0,\n    long_cost_basis: 0.0,\n    short_cost_basis: 0.0,\n    short_margin_used: 0.0\n  };\n  portfolio.realized_gains[ticker] = {\n    long: 0.0,\n    short: 0.0\n  };\n});\n\n// Create analysis state\nconst analysisState = {\n  tickers,\n  selectedAnalysts,\n  portfolio,\n  startDate: $input.first().json.start_date,\n  endDate: $input.first().json.end_date,\n  showReasoning: $input.first().json.show_reasoning === 'true',\n  ollamaModel: $input.first().json.ollama_model,\n  ollamaHost: $input.first().json.ollama_host,\n  analystSignals: {},\n  currentPrices: {},\n  analysisResults: {}\n};\n\nreturn { analysisState };"
+      },
+      "id": "e0c6f7d2-3456-6789-0123-456789012345",
+      "name": "Initialize Analysis State",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f1d7g8e3-4567-7890-1234-567890123456",
+              "name": "currentTicker",
+              "type": "string",
+              "value": "={{ $json.analysisState.tickers[$itemIndex] }}"
+            },
+            {
+              "id": "g2e8h9f4-5678-8901-2345-678901234567",
+              "name": "analysisState",
+              "type": "object",
+              "value": "={{ $json.analysisState }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "h3f9i0g5-6789-9012-3456-789012345678",
+      "name": "Split by Ticker",
+      "type": "n8n-nodes-base.itemLists",
+      "typeVersion": 3,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.analysisState.ollamaHost }}/api/generate",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "={{ $json.analysisState.ollamaModel }}"
+            },
+            {
+              "name": "prompt",
+              "value": "You are Warren Buffett analyzing {{ $json.currentTicker }}. Based on fundamental analysis principles, provide investment recommendation in JSON format with fields: signal (bullish/bearish/neutral), confidence (0-100), reasoning (detailed explanation). Focus on: 1) Business quality and moats 2) Financial health 3) Management quality 4) Valuation 5) Long-term prospects. Return only valid JSON."
+            },
+            {
+              "name": "stream",
+              "value": false
+            },
+            {
+              "name": "options",
+              "value": {
+                "temperature": 0.3,
+                "top_p": 0.9
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "i4g0j1h6-7890-0123-4567-890123456789",
+      "name": "Warren Buffett Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1120,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.analysisState.ollamaHost }}/api/generate",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "={{ $json.analysisState.ollamaModel }}"
+            },
+            {
+              "name": "prompt",
+              "value": "You are Charlie Munger analyzing {{ $json.currentTicker }}. Apply mental models and rational thinking to evaluate this investment. Provide analysis in JSON format with fields: signal (bullish/bearish/neutral), confidence (0-100), reasoning (detailed explanation). Consider: 1) Business model simplicity 2) Competitive advantages 3) Management incentives 4) Psychological factors 5) Risk assessment. Return only valid JSON."
+            },
+            {
+              "name": "stream",
+              "value": false
+            },
+            {
+              "name": "options",
+              "value": {
+                "temperature": 0.3,
+                "top_p": 0.9
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "j5h1k2i7-8901-1234-5678-901234567890",
+      "name": "Charlie Munger Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1120,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.analysisState.ollamaHost }}/api/generate",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "={{ $json.analysisState.ollamaModel }}"
+            },
+            {
+              "name": "prompt",
+              "value": "You are Michael Burry analyzing {{ $json.currentTicker }} for contrarian opportunities. Look for market inefficiencies and potential shorts/value plays. Provide analysis in JSON format with fields: signal (bullish/bearish/neutral), confidence (0-100), reasoning (detailed explanation). Focus on: 1) Market sentiment vs fundamentals 2) Hidden risks or opportunities 3) Contrarian indicators 4) Deep value analysis 5) Catalyst identification. Return only valid JSON."
+            },
+            {
+              "name": "stream",
+              "value": false
+            },
+            {
+              "name": "options",
+              "value": {
+                "temperature": 0.3,
+                "top_p": 0.9
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "k6i2l3j8-9012-2345-6789-012345678901",
+      "name": "Michael Burry Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1120,
+        440
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse analyst responses and combine signals\nconst currentTicker = $input.first().json.currentTicker;\nconst analysisState = $input.first().json.analysisState;\n\n// Get responses from all analyst nodes\nconst buffettResponse = $input.all().find(item => item.json.response)?.json.response;\nconst mungerResponse = $input.all().find(item => item.json.response && item !== buffettResponse)?.json.response;\nconst burryResponse = $input.all().find(item => item.json.response && item !== buffettResponse && item !== mungerResponse)?.json.response;\n\n// Parse JSON responses\nfunction parseAnalystResponse(response, analystName) {\n  try {\n    const parsed = JSON.parse(response);\n    return {\n      signal: parsed.signal || 'neutral',\n      confidence: parsed.confidence || 50,\n      reasoning: parsed.reasoning || `${analystName} analysis unavailable`\n    };\n  } catch (error) {\n    return {\n      signal: 'neutral',\n      confidence: 0,\n      reasoning: `Error parsing ${analystName} response: ${error.message}`\n    };\n  }\n}\n\n// Store analyst signals\nif (!analysisState.analystSignals[currentTicker]) {\n  analysisState.analystSignals[currentTicker] = {};\n}\n\nanalysisState.analystSignals[currentTicker]['warren_buffett'] = parseAnalystResponse(buffettResponse, 'Warren Buffett');\nanalysisState.analystSignals[currentTicker]['charlie_munger'] = parseAnalystResponse(mungerResponse, 'Charlie Munger');\nanalysisState.analystSignals[currentTicker]['michael_burry'] = parseAnalystResponse(burryResponse, 'Michael Burry');\n\nreturn { \n  currentTicker,\n  analysisState,\n  tickerSignals: analysisState.analystSignals[currentTicker]\n};"
+      },
+      "id": "l7j3m4k9-0123-3456-7890-123456789012",
+      "name": "Combine Analyst Signals",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        1340,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Risk Management Analysis\nconst currentTicker = $input.first().json.currentTicker;\nconst analysisState = $input.first().json.analysisState;\nconst tickerSignals = $input.first().json.tickerSignals;\n\n// Simple volatility-based risk assessment\nfunction calculateRiskAdjustedLimit(volatility = 0.25) {\n  const baseLimit = 0.20; // 20% baseline\n  let volMultiplier;\n  \n  if (volatility < 0.15) {\n    volMultiplier = 1.25; // Up to 25% for low vol\n  } else if (volatility < 0.30) {\n    volMultiplier = 1.0 - (volatility - 0.15) * 0.5;\n  } else if (volatility < 0.50) {\n    volMultiplier = 0.75 - (volatility - 0.30) * 0.5;\n  } else {\n    volMultiplier = 0.50; // Max 10% for high vol\n  }\n  \n  return Math.max(0.05, Math.min(0.25, baseLimit * volMultiplier));\n}\n\n// Calculate position limits\nconst portfolioValue = analysisState.portfolio.cash;\nconst assumedVolatility = 0.25; // Default volatility assumption\nconst positionLimit = portfolioValue * calculateRiskAdjustedLimit(assumedVolatility);\nconst currentPrice = 100; // Would normally fetch from market data API\n\n// Store current price and risk data\nanalysisState.currentPrices[currentTicker] = currentPrice;\n\nconst riskAnalysis = {\n  remaining_position_limit: positionLimit,\n  current_price: currentPrice,\n  volatility_metrics: {\n    daily_volatility: assumedVolatility / Math.sqrt(252),\n    annualized_volatility: assumedVolatility,\n    volatility_percentile: 50,\n    data_points: 252\n  },\n  reasoning: {\n    portfolio_value: portfolioValue,\n    position_limit_pct: calculateRiskAdjustedLimit(assumedVolatility),\n    position_limit: positionLimit,\n    available_cash: analysisState.portfolio.cash\n  }\n};\n\n// Add risk analysis to analyst signals\nanalysisState.analystSignals[`risk_management_${currentTicker}`] = riskAnalysis;\n\nreturn {\n  currentTicker,\n  analysisState,\n  riskAnalysis,\n  tickerSignals\n};"
+      },
+      "id": "m8k4n5l0-1234-4567-8901-234567890123",
+      "name": "Risk Management Analysis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        1560,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "combineByPosition",
+        "options": {}
+      },
+      "id": "n9l5o6m1-2345-5678-9012-345678901234",
+      "name": "Merge Ticker Analyses",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [
+        1780,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.analysisState.ollamaHost }}/api/generate",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "={{ $json.analysisState.ollamaModel }}"
+            },
+            {
+              "name": "prompt",
+              "value": "You are a portfolio manager making final trading decisions. Based on analyst signals: {{ JSON.stringify($json.analysisState.analystSignals) }}, current prices: {{ JSON.stringify($json.analysisState.currentPrices) }}, and portfolio: {{ JSON.stringify($json.analysisState.portfolio) }}, make trading decisions for each ticker. Return JSON with 'decisions' object containing ticker decisions with fields: action (buy/sell/short/cover/hold), quantity (integer), confidence (0-100), reasoning (explanation). Consider position limits and risk management."
+            },
+            {
+              "name": "stream",
+              "value": false
+            },
+            {
+              "name": "options",
+              "value": {
+                "temperature": 0.2,
+                "top_p": 0.8
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "o0m6p7n2-3456-6789-0123-456789012345",
+      "name": "Portfolio Management Decision",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2000,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse portfolio management decision and format final output\nconst analysisState = $input.first().json.analysisState;\nconst portfolioDecision = $input.first().json.response;\n\nlet decisions = {};\ntry {\n  const parsed = JSON.parse(portfolioDecision);\n  decisions = parsed.decisions || {};\n} catch (error) {\n  // Fallback to hold decisions if parsing fails\n  analysisState.tickers.forEach(ticker => {\n    decisions[ticker] = {\n      action: 'hold',\n      quantity: 0,\n      confidence: 0,\n      reasoning: `Error parsing portfolio decision: ${error.message}`\n    };\n  });\n}\n\n// Calculate portfolio summary\nlet totalValue = analysisState.portfolio.cash;\nlet totalExposure = 0;\nconst positionSummary = {};\n\nanalysisState.tickers.forEach(ticker => {\n  const price = analysisState.currentPrices[ticker] || 100;\n  const position = analysisState.portfolio.positions[ticker];\n  const longValue = position.long * price;\n  const shortValue = position.short * price;\n  const netValue = longValue - shortValue;\n  \n  totalValue += netValue;\n  totalExposure += Math.abs(longValue) + Math.abs(shortValue);\n  \n  positionSummary[ticker] = {\n    current_price: price,\n    long_shares: position.long,\n    short_shares: position.short,\n    net_value: netValue,\n    decision: decisions[ticker] || { action: 'hold', quantity: 0, confidence: 0, reasoning: 'No decision available' }\n  };\n});\n\nconst finalResult = {\n  timestamp: new Date().toISOString(),\n  analysis_period: {\n    start_date: analysisState.startDate,\n    end_date: analysisState.endDate\n  },\n  portfolio_summary: {\n    total_value: totalValue,\n    cash: analysisState.portfolio.cash,\n    total_exposure: totalExposure,\n    margin_used: analysisState.portfolio.margin_used,\n    margin_requirement: analysisState.portfolio.margin_requirement\n  },\n  decisions,\n  position_summary: positionSummary,\n  analyst_signals: analysisState.analystSignals,\n  configuration: {\n    tickers: analysisState.tickers,\n    selected_analysts: analysisState.selectedAnalysts,\n    ollama_model: analysisState.ollamaModel,\n    show_reasoning: analysisState.showReasoning\n  }\n};\n\nreturn finalResult;"
+      },
+      "id": "p1n7q8o3-4567-7890-1234-567890123456",
+      "name": "Format Final Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        2220,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json, null, 2) }}",
+        "options": {}
+      },
+      "id": "q2o8r9p4-5678-8901-2345-678901234567",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        2440,
+        320
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - Start Analysis": {
+      "main": [
+        [
+          {
+            "node": "Set Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Configuration": {
+      "main": [
+        [
+          {
+            "node": "Initialize Analysis State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Initialize Analysis State": {
+      "main": [
+        [
+          {
+            "node": "Split by Ticker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split by Ticker": {
+      "main": [
+        [
+          {
+            "node": "Warren Buffett Analysis",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Charlie Munger Analysis",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Michael Burry Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Warren Buffett Analysis": {
+      "main": [
+        [
+          {
+            "node": "Combine Analyst Signals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Charlie Munger Analysis": {
+      "main": [
+        [
+          {
+            "node": "Combine Analyst Signals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Michael Burry Analysis": {
+      "main": [
+        [
+          {
+            "node": "Combine Analyst Signals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combine Analyst Signals": {
+      "main": [
+        [
+          {
+            "node": "Risk Management Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Risk Management Analysis": {
+      "main": [
+        [
+          {
+            "node": "Merge Ticker Analyses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Ticker Analyses": {
+      "main": [
+        [
+          {
+            "node": "Portfolio Management Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Portfolio Management Decision": {
+      "main": [
+        [
+          {
+            "node": "Format Final Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Final Results": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z",
+      "id": "hedge-fund",
+      "name": "Hedge Fund"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "versionId": "1"
+}

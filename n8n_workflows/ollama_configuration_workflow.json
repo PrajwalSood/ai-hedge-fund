@@ -1,0 +1,548 @@
+{
+  "name": "AI Hedge Fund - Ollama Configuration & Management",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "/ollama/status",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "ol1a2b3c-1111-2222-3333-444444444444",
+      "name": "Webhook - Check Ollama Status",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        200
+      ],
+      "webhookId": "ollama-status"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "/ollama/configure",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "ol2b3c4d-2222-3333-4444-555555555555",
+      "name": "Webhook - Configure Ollama",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        320
+      ],
+      "webhookId": "ollama-configure"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "/ollama/test",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "ol3c4d5e-3333-4444-5555-666666666666",
+      "name": "Webhook - Test Ollama",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        440
+      ],
+      "webhookId": "ollama-test"
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "ollama_host",
+              "value": "={{ $json.query.ollama_host || $json.body.ollama_host || 'http://localhost:11434' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ol4d5e6f-4444-5555-6666-777777777777",
+      "name": "Set Ollama Host",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        460,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "ollama_host",
+              "value": "={{ $json.body.ollama_host || 'http://localhost:11434' }}"
+            },
+            {
+              "name": "model_name",
+              "value": "={{ $json.body.model_name || 'llama3.1:8b' }}"
+            },
+            {
+              "name": "auto_pull",
+              "value": "={{ $json.body.auto_pull || 'true' }}"
+            },
+            {
+              "name": "temperature",
+              "value": "={{ $json.body.temperature || '0.3' }}"
+            },
+            {
+              "name": "top_p",
+              "value": "={{ $json.body.top_p || '0.9' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ol5e6f7g-5555-6666-7777-888888888888",
+      "name": "Set Configuration Parameters",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        460,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "ollama_host",
+              "value": "={{ $json.body.ollama_host || 'http://localhost:11434' }}"
+            },
+            {
+              "name": "model_name",
+              "value": "={{ $json.body.model_name || 'llama3.1:8b' }}"
+            },
+            {
+              "name": "test_prompt",
+              "value": "={{ $json.body.test_prompt || 'Hello, this is a test. Please respond with a brief acknowledgment.' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ol6f7g8h-6666-7777-8888-999999999999",
+      "name": "Set Test Parameters",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        460,
+        440
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.ollama_host }}/api/tags",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "ol7g8h9i-7777-8888-9999-000000000000",
+      "name": "Check Ollama Service",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        680,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.ollama_host }}/api/tags",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "ol8h9i0j-8888-9999-0000-111111111111",
+      "name": "Check Available Models",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        680,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.ollama_host }}/api/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "={{ $json.model_name }}"
+            },
+            {
+              "name": "prompt",
+              "value": "={{ $json.test_prompt }}"
+            },
+            {
+              "name": "stream",
+              "value": false
+            },
+            {
+              "name": "options",
+              "value": {
+                "temperature": 0.3,
+                "top_p": 0.9,
+                "num_predict": 100
+              }
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "ol9i0j1k-9999-0000-1111-222222222222",
+      "name": "Test Model Generation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        680,
+        440
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process Ollama status check results\nconst ollamaHost = $input.first().json.ollama_host;\nconst statusResponse = $input.first().json;\n\nlet ollamaStatus = {\n  host: ollamaHost,\n  service_running: false,\n  available_models: [],\n  error: null,\n  response_time: null,\n  recommendations: []\n};\n\n// Check if we got a successful response\nif (statusResponse.models && Array.isArray(statusResponse.models)) {\n  ollamaStatus.service_running = true;\n  ollamaStatus.available_models = statusResponse.models.map(model => ({\n    name: model.name,\n    size: model.size,\n    modified_at: model.modified_at,\n    digest: model.digest\n  }));\n  \n  // Add recommendations based on available models\n  const recommendedModels = ['llama3.1:8b', 'llama3.1:7b', 'llama2:7b', 'mistral:7b', 'codellama:7b'];\n  const availableModelNames = ollamaStatus.available_models.map(m => m.name);\n  \n  recommendedModels.forEach(model => {\n    if (availableModelNames.includes(model)) {\n      ollamaStatus.recommendations.push(`✓ ${model} is available and recommended for hedge fund analysis`);\n    } else {\n      ollamaStatus.recommendations.push(`⚠ Consider pulling ${model} with: ollama pull ${model}`);\n    }\n  });\n  \n  if (ollamaStatus.available_models.length === 0) {\n    ollamaStatus.recommendations.push('⚠ No models found. Pull a model with: ollama pull llama3.1:8b');\n  }\n  \n} else {\n  ollamaStatus.service_running = false;\n  ollamaStatus.error = 'Unable to connect to Ollama service';\n  ollamaStatus.recommendations = [\n    '❌ Ollama service is not running or not accessible',\n    '1. Install Ollama from https://ollama.ai',\n    '2. Start Ollama service',\n    '3. Verify it\\'s running on the correct host/port',\n    '4. Pull a model: ollama pull llama3.1:8b'\n  ];\n}\n\nreturn {\n  timestamp: new Date().toISOString(),\n  status: ollamaStatus\n};"
+      },
+      "id": "ol0j1k2l-0000-1111-2222-333333333333",
+      "name": "Process Status Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        900,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "id": "ol1k2l3m-1111-2222-3333-444444444444",
+              "value1": "={{ $json.auto_pull }}",
+              "operation": "equals",
+              "value2": "true"
+            }
+          ]
+        }
+      },
+      "id": "ol2l3m4n-2222-3333-4444-555555555555",
+      "name": "Check Auto Pull",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        900,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process configuration and model availability\nconst configParams = $input.first().json;\nconst availableModels = $input.first().json;\n\nlet configResult = {\n  host: configParams.ollama_host,\n  requested_model: configParams.model_name,\n  model_available: false,\n  configuration_valid: false,\n  actions_taken: [],\n  next_steps: [],\n  error: null\n};\n\n// Check if the service is running and models are available\nif (availableModels.models && Array.isArray(availableModels.models)) {\n  const modelNames = availableModels.models.map(m => m.name);\n  configResult.model_available = modelNames.includes(configParams.model_name);\n  \n  if (configResult.model_available) {\n    configResult.configuration_valid = true;\n    configResult.actions_taken.push(`✓ Model ${configParams.model_name} is available`);\n    configResult.actions_taken.push(`✓ Configuration validated successfully`);\n    configResult.next_steps.push('Ready to use for hedge fund analysis');\n  } else {\n    configResult.actions_taken.push(`⚠ Model ${configParams.model_name} not found`);\n    configResult.next_steps.push(`Pull the model with: ollama pull ${configParams.model_name}`);\n    configResult.next_steps.push('Alternative available models: ' + modelNames.join(', '));\n  }\n} else {\n  configResult.error = 'Ollama service not accessible';\n  configResult.next_steps.push('Ensure Ollama service is running');\n  configResult.next_steps.push('Check host configuration: ' + configParams.ollama_host);\n}\n\nreturn {\n  timestamp: new Date().toISOString(),\n  configuration: configResult,\n  parameters: {\n    host: configParams.ollama_host,\n    model: configParams.model_name,\n    temperature: parseFloat(configParams.temperature),\n    top_p: parseFloat(configParams.top_p),\n    auto_pull: configParams.auto_pull === 'true'\n  }\n};"
+      },
+      "id": "ol3m4n5o-3333-4444-5555-666666666666",
+      "name": "Process Configuration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.ollama_host }}/api/pull",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "name",
+              "value": "={{ $json.model_name }}"
+            },
+            {
+              "name": "stream",
+              "value": false
+            }
+          ]
+        },
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "ol4n5o6p-4444-5555-6666-777777777777",
+      "name": "Pull Model",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1120,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process test results\nconst testParams = $input.first().json;\nconst testResponse = $input.first().json;\n\nlet testResult = {\n  host: testParams.ollama_host,\n  model: testParams.model_name,\n  test_prompt: testParams.test_prompt,\n  success: false,\n  response_received: false,\n  response_quality: 'unknown',\n  response_time: null,\n  error: null,\n  recommendations: []\n};\n\n// Check if we got a valid response\nif (testResponse.response && typeof testResponse.response === 'string') {\n  testResult.success = true;\n  testResult.response_received = true;\n  \n  // Basic quality assessment\n  const responseLength = testResponse.response.length;\n  if (responseLength > 10 && responseLength < 1000) {\n    testResult.response_quality = 'good';\n    testResult.recommendations.push('✓ Model is responding appropriately');\n    testResult.recommendations.push('✓ Ready for hedge fund analysis tasks');\n  } else if (responseLength <= 10) {\n    testResult.response_quality = 'too_short';\n    testResult.recommendations.push('⚠ Response seems too brief, consider adjusting temperature');\n  } else {\n    testResult.response_quality = 'too_verbose';\n    testResult.recommendations.push('⚠ Response seems too verbose, consider lowering temperature');\n  }\n  \n  // Performance recommendations\n  if (testResponse.eval_duration) {\n    const responseTimeMs = testResponse.eval_duration / 1000000; // Convert nanoseconds to milliseconds\n    testResult.response_time = responseTimeMs;\n    \n    if (responseTimeMs < 2000) {\n      testResult.recommendations.push('✓ Good response time for real-time analysis');\n    } else if (responseTimeMs < 5000) {\n      testResult.recommendations.push('⚠ Moderate response time, acceptable for batch processing');\n    } else {\n      testResult.recommendations.push('⚠ Slow response time, consider using a smaller model');\n    }\n  }\n  \n} else {\n  testResult.success = false;\n  testResult.error = testResponse.error || 'No valid response received';\n  testResult.recommendations = [\n    '❌ Model test failed',\n    'Check if the model is properly loaded',\n    'Verify model name is correct',\n    'Ensure sufficient system resources'\n  ];\n}\n\nreturn {\n  timestamp: new Date().toISOString(),\n  test_result: testResult,\n  raw_response: {\n    response: testResponse.response || null,\n    model: testResponse.model || null,\n    created_at: testResponse.created_at || null,\n    done: testResponse.done || false,\n    total_duration: testResponse.total_duration || null,\n    load_duration: testResponse.load_duration || null,\n    prompt_eval_count: testResponse.prompt_eval_count || null,\n    eval_count: testResponse.eval_count || null,\n    eval_duration: testResponse.eval_duration || null\n  },\n  performance_metrics: {\n    tokens_per_second: testResponse.eval_count && testResponse.eval_duration ? \n      (testResponse.eval_count / (testResponse.eval_duration / 1000000000)) : null,\n    total_time_seconds: testResponse.total_duration ? testResponse.total_duration / 1000000000 : null\n  }\n};"
+      },
+      "id": "ol5o6p7q-5555-6666-7777-888888888888",
+      "name": "Process Test Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        900,
+        440
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json, null, 2) }}",
+        "options": {}
+      },
+      "id": "ol6p7q8r-6666-7777-8888-999999999999",
+      "name": "Status Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json, null, 2) }}",
+        "options": {}
+      },
+      "id": "ol7q8r9s-7777-8888-9999-000000000000",
+      "name": "Configuration Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1340,
+        330
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json, null, 2) }}",
+        "options": {}
+      },
+      "id": "ol8r9s0t-8888-9999-0000-111111111111",
+      "name": "Test Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        440
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - Check Ollama Status": {
+      "main": [
+        [
+          {
+            "node": "Set Ollama Host",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook - Configure Ollama": {
+      "main": [
+        [
+          {
+            "node": "Set Configuration Parameters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook - Test Ollama": {
+      "main": [
+        [
+          {
+            "node": "Set Test Parameters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Ollama Host": {
+      "main": [
+        [
+          {
+            "node": "Check Ollama Service",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Configuration Parameters": {
+      "main": [
+        [
+          {
+            "node": "Check Available Models",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Test Parameters": {
+      "main": [
+        [
+          {
+            "node": "Test Model Generation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Ollama Service": {
+      "main": [
+        [
+          {
+            "node": "Process Status Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Available Models": {
+      "main": [
+        [
+          {
+            "node": "Check Auto Pull",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test Model Generation": {
+      "main": [
+        [
+          {
+            "node": "Process Test Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Status Results": {
+      "main": [
+        [
+          {
+            "node": "Status Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Auto Pull": {
+      "main": [
+        [
+          {
+            "node": "Pull Model",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Process Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Configuration": {
+      "main": [
+        [
+          {
+            "node": "Configuration Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pull Model": {
+      "main": [
+        [
+          {
+            "node": "Process Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Test Results": {
+      "main": [
+        [
+          {
+            "node": "Test Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z",
+      "id": "ollama-config",
+      "name": "Ollama Configuration"
+    }
+  ],
+  "triggerCount": 3,
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "versionId": "1"
+}

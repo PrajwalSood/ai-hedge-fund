@@ -1,0 +1,373 @@
+{
+  "name": "AI Hedge Fund - Backtesting Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "/backtest/run",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "bt1a2b3c-1111-2222-3333-444444444444",
+      "name": "Webhook - Start Backtest",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "backtest-run"
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "tickers",
+              "value": "={{ $json.body.tickers || 'AAPL,MSFT,GOOGL' }}"
+            },
+            {
+              "name": "start_date",
+              "value": "={{ $json.body.start_date || $now.minus({months: 6}).toFormat('yyyy-MM-dd') }}"
+            },
+            {
+              "name": "end_date",
+              "value": "={{ $json.body.end_date || $now.toFormat('yyyy-MM-dd') }}"
+            },
+            {
+              "name": "initial_capital",
+              "value": "={{ $json.body.initial_capital || '100000' }}"
+            },
+            {
+              "name": "margin_requirement",
+              "value": "={{ $json.body.margin_requirement || '0.5' }}"
+            },
+            {
+              "name": "selected_analysts",
+              "value": "={{ $json.body.selected_analysts || 'warren_buffett,charlie_munger' }}"
+            },
+            {
+              "name": "ollama_model",
+              "value": "={{ $json.body.ollama_model || 'llama3.1:8b' }}"
+            },
+            {
+              "name": "ollama_host",
+              "value": "={{ $json.body.ollama_host || 'http://localhost:11434' }}"
+            },
+            {
+              "name": "rebalance_frequency",
+              "value": "={{ $json.body.rebalance_frequency || 'weekly' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "bt2b3c4d-2222-3333-4444-555555555555",
+      "name": "Set Backtest Parameters",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Initialize backtest state\nconst tickers = $input.first().json.tickers.split(',').map(t => t.trim());\nconst selectedAnalysts = $input.first().json.selected_analysts.split(',').map(a => a.trim());\nconst startDate = new Date($input.first().json.start_date);\nconst endDate = new Date($input.first().json.end_date);\nconst initialCapital = parseFloat($input.first().json.initial_capital);\nconst marginRequirement = parseFloat($input.first().json.margin_requirement);\nconst rebalanceFreq = $input.first().json.rebalance_frequency;\n\n// Calculate rebalance dates based on frequency\nfunction getRebalanceDates(start, end, frequency) {\n  const dates = [];\n  const current = new Date(start);\n  \n  while (current <= end) {\n    dates.push(new Date(current));\n    \n    switch(frequency) {\n      case 'daily':\n        current.setDate(current.getDate() + 1);\n        break;\n      case 'weekly':\n        current.setDate(current.getDate() + 7);\n        break;\n      case 'monthly':\n        current.setMonth(current.getMonth() + 1);\n        break;\n      default:\n        current.setDate(current.getDate() + 7); // Default to weekly\n    }\n  }\n  \n  return dates;\n}\n\nconst rebalanceDates = getRebalanceDates(startDate, endDate, rebalanceFreq);\n\n// Initialize portfolio\nconst portfolio = {\n  cash: initialCapital,\n  margin_requirement: marginRequirement,\n  margin_used: 0.0,\n  positions: {},\n  realized_gains: {},\n  portfolio_value_history: []\n};\n\n// Initialize positions for each ticker\ntickers.forEach(ticker => {\n  portfolio.positions[ticker] = {\n    long: 0,\n    short: 0,\n    long_cost_basis: 0.0,\n    short_cost_basis: 0.0,\n    short_margin_used: 0.0\n  };\n  portfolio.realized_gains[ticker] = {\n    long: 0.0,\n    short: 0.0\n  };\n});\n\nconst backtestState = {\n  tickers,\n  selectedAnalysts,\n  startDate: $input.first().json.start_date,\n  endDate: $input.first().json.end_date,\n  rebalanceDates: rebalanceDates.map(d => d.toISOString().split('T')[0]),\n  currentDateIndex: 0,\n  portfolio,\n  ollamaModel: $input.first().json.ollama_model,\n  ollamaHost: $input.first().json.ollama_host,\n  tradeHistory: [],\n  performanceMetrics: {\n    totalReturn: 0,\n    sharpeRatio: 0,\n    maxDrawdown: 0,\n    winRate: 0\n  }\n};\n\nreturn { backtestState };"
+      },
+      "id": "bt3c4d5e-3333-4444-5555-666666666666",
+      "name": "Initialize Backtest State",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "bt4d5e6f-4444-5555-6666-777777777777",
+              "name": "currentDate",
+              "type": "string",
+              "value": "={{ $json.backtestState.rebalanceDates[$itemIndex] }}"
+            },
+            {
+              "id": "bt5e6f7g-5555-6666-7777-888888888888",
+              "name": "backtestState",
+              "type": "object",
+              "value": "={{ $json.backtestState }}"
+            },
+            {
+              "id": "bt6f7g8h-6666-7777-8888-999999999999",
+              "name": "dateIndex",
+              "type": "number",
+              "value": "={{ $itemIndex }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "bt7g8h9i-7777-8888-9999-000000000000",
+      "name": "Split by Rebalance Date",
+      "type": "n8n-nodes-base.itemLists",
+      "typeVersion": 3,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Fetch historical price data for the current date\nconst currentDate = $input.first().json.currentDate;\nconst backtestState = $input.first().json.backtestState;\nconst dateIndex = $input.first().json.dateIndex;\n\n// Simulate price data (in real implementation, you'd fetch from financial API)\nconst simulatedPrices = {};\nconst basePrice = 100;\n\nbacktestState.tickers.forEach((ticker, index) => {\n  // Simulate price movement with some randomness and trend\n  const daysSinceStart = dateIndex * 7; // Assuming weekly rebalancing\n  const trend = 1 + (daysSinceStart * 0.001); // Small upward trend\n  const volatility = 0.02; // 2% daily volatility\n  const randomFactor = 1 + (Math.random() - 0.5) * volatility;\n  const tickerMultiplier = 1 + (index * 0.1); // Different base prices for different tickers\n  \n  simulatedPrices[ticker] = basePrice * tickerMultiplier * trend * randomFactor;\n});\n\nreturn {\n  currentDate,\n  backtestState,\n  dateIndex,\n  currentPrices: simulatedPrices\n};"
+      },
+      "id": "bt8h9i0j-8888-9999-0000-111111111111",
+      "name": "Fetch Market Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:5678/webhook/hedge-fund-analyze",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "tickers",
+              "value": "={{ $json.backtestState.tickers.join(',') }}"
+            },
+            {
+              "name": "start_date",
+              "value": "={{ $now.minus({days: 30}).toFormat('yyyy-MM-dd') }}"
+            },
+            {
+              "name": "end_date",
+              "value": "={{ $json.currentDate }}"
+            },
+            {
+              "name": "initial_cash",
+              "value": "={{ $json.backtestState.portfolio.cash }}"
+            },
+            {
+              "name": "margin_requirement",
+              "value": "={{ $json.backtestState.portfolio.margin_requirement }}"
+            },
+            {
+              "name": "selected_analysts",
+              "value": "={{ $json.backtestState.selectedAnalysts.join(',') }}"
+            },
+            {
+              "name": "ollama_model",
+              "value": "={{ $json.backtestState.ollamaModel }}"
+            },
+            {
+              "name": "ollama_host",
+              "value": "={{ $json.backtestState.ollamaHost }}"
+            },
+            {
+              "name": "show_reasoning",
+              "value": "false"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "bt9i0j1k-9999-0000-1111-222222222222",
+      "name": "Get Trading Decisions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1340,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Execute trades and update portfolio\nconst currentDate = $input.first().json.currentDate;\nconst backtestState = $input.first().json.backtestState;\nconst currentPrices = $input.first().json.currentPrices;\nconst dateIndex = $input.first().json.dateIndex;\nconst tradingDecisions = $input.first().json.decisions || {};\n\n// Execute trades for each ticker\nconst executedTrades = [];\nconst portfolio = backtestState.portfolio;\n\nObject.keys(tradingDecisions).forEach(ticker => {\n  const decision = tradingDecisions[ticker];\n  const currentPrice = currentPrices[ticker];\n  const position = portfolio.positions[ticker];\n  \n  if (!decision || !currentPrice) return;\n  \n  const action = decision.action;\n  const quantity = parseInt(decision.quantity) || 0;\n  \n  if (quantity <= 0 || action === 'hold') return;\n  \n  let executedQuantity = 0;\n  \n  switch(action) {\n    case 'buy':\n      const buyValue = quantity * currentPrice;\n      if (buyValue <= portfolio.cash) {\n        // Update position\n        const oldShares = position.long;\n        const oldCostBasis = position.long_cost_basis;\n        const newTotalShares = oldShares + quantity;\n        \n        if (newTotalShares > 0) {\n          position.long_cost_basis = (oldCostBasis * oldShares + buyValue) / newTotalShares;\n        }\n        \n        position.long += quantity;\n        portfolio.cash -= buyValue;\n        executedQuantity = quantity;\n      } else {\n        // Partial fill with available cash\n        const maxQuantity = Math.floor(portfolio.cash / currentPrice);\n        if (maxQuantity > 0) {\n          const partialValue = maxQuantity * currentPrice;\n          const oldShares = position.long;\n          const oldCostBasis = position.long_cost_basis;\n          const newTotalShares = oldShares + maxQuantity;\n          \n          if (newTotalShares > 0) {\n            position.long_cost_basis = (oldCostBasis * oldShares + partialValue) / newTotalShares;\n          }\n          \n          position.long += maxQuantity;\n          portfolio.cash -= partialValue;\n          executedQuantity = maxQuantity;\n        }\n      }\n      break;\n      \n    case 'sell':\n      const sellQuantity = Math.min(quantity, position.long);\n      if (sellQuantity > 0) {\n        const sellValue = sellQuantity * currentPrice;\n        const realizedGain = (currentPrice - position.long_cost_basis) * sellQuantity;\n        \n        portfolio.realized_gains[ticker].long += realizedGain;\n        position.long -= sellQuantity;\n        portfolio.cash += sellValue;\n        \n        if (position.long === 0) {\n          position.long_cost_basis = 0;\n        }\n        \n        executedQuantity = sellQuantity;\n      }\n      break;\n      \n    case 'short':\n      const shortValue = quantity * currentPrice;\n      const marginRequired = shortValue * portfolio.margin_requirement;\n      \n      if (marginRequired <= portfolio.cash) {\n        const oldShares = position.short;\n        const oldCostBasis = position.short_cost_basis;\n        const newTotalShares = oldShares + quantity;\n        \n        if (newTotalShares > 0) {\n          position.short_cost_basis = (oldCostBasis * oldShares + currentPrice * quantity) / newTotalShares;\n        }\n        \n        position.short += quantity;\n        position.short_margin_used += marginRequired;\n        portfolio.margin_used += marginRequired;\n        portfolio.cash += shortValue - marginRequired;\n        executedQuantity = quantity;\n      }\n      break;\n      \n    case 'cover':\n      const coverQuantity = Math.min(quantity, position.short);\n      if (coverQuantity > 0) {\n        const coverValue = coverQuantity * currentPrice;\n        const realizedGain = (position.short_cost_basis - currentPrice) * coverQuantity;\n        const marginToRelease = (coverQuantity / position.short) * position.short_margin_used;\n        \n        portfolio.realized_gains[ticker].short += realizedGain;\n        position.short -= coverQuantity;\n        position.short_margin_used -= marginToRelease;\n        portfolio.margin_used -= marginToRelease;\n        portfolio.cash += marginToRelease - coverValue;\n        \n        if (position.short === 0) {\n          position.short_cost_basis = 0;\n          position.short_margin_used = 0;\n        }\n        \n        executedQuantity = coverQuantity;\n      }\n      break;\n  }\n  \n  if (executedQuantity > 0) {\n    executedTrades.push({\n      date: currentDate,\n      ticker: ticker,\n      action: action,\n      quantity: executedQuantity,\n      price: currentPrice,\n      value: executedQuantity * currentPrice\n    });\n  }\n});\n\n// Calculate current portfolio value\nlet totalValue = portfolio.cash;\nbacktestState.tickers.forEach(ticker => {\n  const position = portfolio.positions[ticker];\n  const price = currentPrices[ticker];\n  \n  // Long position value\n  totalValue += position.long * price;\n  // Short position impact (negative)\n  totalValue -= position.short * price;\n});\n\n// Record portfolio value\nportfolio.portfolio_value_history.push({\n  date: currentDate,\n  value: totalValue,\n  cash: portfolio.cash,\n  positions_value: totalValue - portfolio.cash\n});\n\n// Add trade history\nbacktestState.tradeHistory = backtestState.tradeHistory.concat(executedTrades);\n\nreturn {\n  currentDate,\n  backtestState,\n  currentPrices,\n  executedTrades,\n  portfolioValue: totalValue\n};"
+      },
+      "id": "bt0j1k2l-0000-1111-2222-333333333333",
+      "name": "Execute Trades",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        1560,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "combineByPosition",
+        "options": {}
+      },
+      "id": "bt1k2l3m-1111-2222-3333-444444444444",
+      "name": "Merge Daily Results",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [
+        1780,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Calculate final backtest performance metrics\nconst allResults = $input.all();\nconst finalState = allResults[allResults.length - 1].json.backtestState;\nconst initialCapital = parseFloat($('Set Backtest Parameters').first().json.initial_capital);\n\n// Calculate performance metrics\nconst portfolioHistory = finalState.portfolio.portfolio_value_history;\nconst finalValue = portfolioHistory[portfolioHistory.length - 1]?.value || initialCapital;\nconst totalReturn = ((finalValue - initialCapital) / initialCapital) * 100;\n\n// Calculate daily returns for Sharpe ratio\nconst dailyReturns = [];\nfor (let i = 1; i < portfolioHistory.length; i++) {\n  const prevValue = portfolioHistory[i-1].value;\n  const currentValue = portfolioHistory[i].value;\n  const dailyReturn = (currentValue - prevValue) / prevValue;\n  dailyReturns.push(dailyReturn);\n}\n\n// Calculate Sharpe ratio (assuming 4% risk-free rate)\nconst riskFreeRate = 0.04 / 252; // Daily risk-free rate\nconst avgReturn = dailyReturns.reduce((sum, ret) => sum + ret, 0) / dailyReturns.length;\nconst returnVariance = dailyReturns.reduce((sum, ret) => sum + Math.pow(ret - avgReturn, 2), 0) / dailyReturns.length;\nconst returnStd = Math.sqrt(returnVariance);\nconst sharpeRatio = returnStd > 0 ? Math.sqrt(252) * (avgReturn - riskFreeRate) / returnStd : 0;\n\n// Calculate maximum drawdown\nlet maxValue = initialCapital;\nlet maxDrawdown = 0;\nportfolioHistory.forEach(record => {\n  if (record.value > maxValue) {\n    maxValue = record.value;\n  }\n  const drawdown = (maxValue - record.value) / maxValue;\n  if (drawdown > maxDrawdown) {\n    maxDrawdown = drawdown;\n  }\n});\n\n// Calculate win rate\nconst winningDays = dailyReturns.filter(ret => ret > 0).length;\nconst winRate = dailyReturns.length > 0 ? (winningDays / dailyReturns.length) * 100 : 0;\n\n// Calculate total realized gains\nlet totalRealizedGains = 0;\nfinalState.tickers.forEach(ticker => {\n  totalRealizedGains += finalState.portfolio.realized_gains[ticker].long;\n  totalRealizedGains += finalState.portfolio.realized_gains[ticker].short;\n});\n\nconst backtestResults = {\n  summary: {\n    start_date: finalState.startDate,\n    end_date: finalState.endDate,\n    initial_capital: initialCapital,\n    final_value: finalValue,\n    total_return_pct: totalReturn,\n    total_realized_gains: totalRealizedGains,\n    total_trades: finalState.tradeHistory.length\n  },\n  performance_metrics: {\n    total_return_pct: totalReturn,\n    sharpe_ratio: sharpeRatio,\n    max_drawdown_pct: maxDrawdown * 100,\n    win_rate_pct: winRate,\n    avg_daily_return_pct: avgReturn * 100,\n    daily_volatility_pct: returnStd * 100\n  },\n  portfolio_history: portfolioHistory,\n  trade_history: finalState.tradeHistory,\n  final_positions: finalState.portfolio.positions,\n  configuration: {\n    tickers: finalState.tickers,\n    selected_analysts: finalState.selectedAnalysts,\n    rebalance_frequency: $('Set Backtest Parameters').first().json.rebalance_frequency,\n    margin_requirement: finalState.portfolio.margin_requirement,\n    ollama_model: finalState.ollamaModel\n  }\n};\n\nreturn backtestResults;"
+      },
+      "id": "bt2l3m4n-2222-3333-4444-555555555555",
+      "name": "Calculate Performance Metrics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        2000,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json, null, 2) }}",
+        "options": {}
+      },
+      "id": "bt3m4n5o-3333-4444-5555-666666666666",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        2220,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - Start Backtest": {
+      "main": [
+        [
+          {
+            "node": "Set Backtest Parameters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Backtest Parameters": {
+      "main": [
+        [
+          {
+            "node": "Initialize Backtest State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Initialize Backtest State": {
+      "main": [
+        [
+          {
+            "node": "Split by Rebalance Date",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split by Rebalance Date": {
+      "main": [
+        [
+          {
+            "node": "Fetch Market Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Market Data": {
+      "main": [
+        [
+          {
+            "node": "Get Trading Decisions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Trading Decisions": {
+      "main": [
+        [
+          {
+            "node": "Execute Trades",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Trades": {
+      "main": [
+        [
+          {
+            "node": "Merge Daily Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Daily Results": {
+      "main": [
+        [
+          {
+            "node": "Calculate Performance Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Performance Metrics": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z",
+      "id": "backtest",
+      "name": "Backtest"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "versionId": "1"
+}

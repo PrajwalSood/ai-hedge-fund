@@ -1,0 +1,534 @@
+{
+  "name": "AI Hedge Fund - Individual Analyst Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "/analyst/analyze",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a1b2c3d4-1111-2222-3333-444444444444",
+      "name": "Webhook - Analyst Request",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "analyst-analyze"
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "analyst_type",
+              "value": "={{ $json.body.analyst_type || 'warren_buffett' }}"
+            },
+            {
+              "name": "ticker",
+              "value": "={{ $json.body.ticker || 'AAPL' }}"
+            },
+            {
+              "name": "start_date",
+              "value": "={{ $json.body.start_date || $now.minus({months: 3}).toFormat('yyyy-MM-dd') }}"
+            },
+            {
+              "name": "end_date",
+              "value": "={{ $json.body.end_date || $now.toFormat('yyyy-MM-dd') }}"
+            },
+            {
+              "name": "ollama_model",
+              "value": "={{ $json.body.ollama_model || 'llama3.1:8b' }}"
+            },
+            {
+              "name": "ollama_host",
+              "value": "={{ $json.body.ollama_host || 'http://localhost:11434' }}"
+            },
+            {
+              "name": "financial_api_key",
+              "value": "={{ $json.body.financial_api_key || '' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b2c3d4e5-2222-3333-4444-555555555555",
+      "name": "Set Analyst Parameters",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "id": "c3d4e5f6-3333-4444-5555-666666666666",
+              "value1": "={{ $json.analyst_type }}",
+              "operation": "equals",
+              "value2": "warren_buffett"
+            }
+          ]
+        }
+      },
+      "id": "d4e5f6g7-4444-5555-6666-777777777777",
+      "name": "Check Analyst Type - Buffett",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        680,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "id": "e5f6g7h8-5555-6666-7777-888888888888",
+              "value1": "={{ $json.analyst_type }}",
+              "operation": "equals",
+              "value2": "charlie_munger"
+            }
+          ]
+        }
+      },
+      "id": "f6g7h8i9-6666-7777-8888-999999999999",
+      "name": "Check Analyst Type - Munger",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        680,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "id": "g7h8i9j0-7777-8888-9999-000000000000",
+              "value1": "={{ $json.analyst_type }}",
+              "operation": "equals",
+              "value2": "michael_burry"
+            }
+          ]
+        }
+      },
+      "id": "h8i9j0k1-8888-9999-0000-111111111111",
+      "name": "Check Analyst Type - Burry",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        680,
+        440
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.financialdatasets.ai/fundamentals/ratios",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $json.financial_api_key }}"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "ticker",
+              "value": "={{ $json.ticker }}"
+            },
+            {
+              "name": "period",
+              "value": "ttm"
+            },
+            {
+              "name": "limit",
+              "value": "10"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "i9j0k1l2-9999-0000-1111-222222222222",
+      "name": "Fetch Financial Metrics",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.ollama_host }}/api/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "={{ $json.ollama_model }}"
+            },
+            {
+              "name": "prompt",
+              "value": "You are Warren Buffett, the Oracle of Omaha. Analyze {{ $json.ticker }} using your proven investment principles:\n\n1. Circle of Competence: Do I understand this business?\n2. Economic Moats: Does it have durable competitive advantages?\n3. Quality Management: Are managers honest and competent?\n4. Financial Fortress: Strong balance sheet and consistent earnings?\n5. Intrinsic Value: Is it trading below fair value?\n6. Long-term Prospects: Will it prosper for decades?\n\nFinancial Data: {{ JSON.stringify($('Fetch Financial Metrics').first().json) }}\n\nProvide your analysis in JSON format:\n{\n  \"signal\": \"bullish\" | \"bearish\" | \"neutral\",\n  \"confidence\": 0-100,\n  \"reasoning\": \"Detailed explanation in my voice, mentioning specific metrics and using folksy wisdom\"\n}\n\nFocus on business quality over short-term price movements. Remember: 'Price is what you pay, value is what you get.'"
+            },
+            {
+              "name": "stream",
+              "value": false
+            },
+            {
+              "name": "options",
+              "value": {
+                "temperature": 0.3,
+                "top_p": 0.9
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "j0k1l2m3-0000-1111-2222-333333333333",
+      "name": "Warren Buffett Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1120,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.ollama_host }}/api/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "={{ $json.ollama_model }}"
+            },
+            {
+              "name": "prompt",
+              "value": "You are Charlie Munger, Warren's rational partner. Analyze {{ $json.ticker }} using mental models and multidisciplinary thinking:\n\n1. Inversion: What could go wrong?\n2. Psychology: What biases affect this investment?\n3. Incentives: Are management incentives aligned?\n4. Systems Thinking: How does this fit in the broader ecosystem?\n5. Simplicity: Is this business model simple and understandable?\n6. Competitive Dynamics: What are the second and third-order effects?\n\nFinancial Data: {{ JSON.stringify($('Fetch Financial Metrics').first().json) }}\n\nProvide your analysis in JSON format:\n{\n  \"signal\": \"bullish\" | \"bearish\" | \"neutral\",\n  \"confidence\": 0-100,\n  \"reasoning\": \"Rational analysis using multiple mental models and considering human psychology\"\n}\n\nApply rigorous thinking and consider what most investors might miss."
+            },
+            {
+              "name": "stream",
+              "value": false
+            },
+            {
+              "name": "options",
+              "value": {
+                "temperature": 0.3,
+                "top_p": 0.9
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "k1l2m3n4-1111-2222-3333-444444444444",
+      "name": "Charlie Munger Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1120,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.ollama_host }}/api/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "={{ $json.ollama_model }}"
+            },
+            {
+              "name": "prompt",
+              "value": "You are Michael Burry, the contrarian investor from 'The Big Short'. Analyze {{ $json.ticker }} looking for market inefficiencies:\n\n1. Contrarian Opportunities: What is the market missing?\n2. Deep Value: Are there hidden assets or undervalued segments?\n3. Market Sentiment: Is there irrational exuberance or pessimism?\n4. Risk Assessment: What are the real risks vs perceived risks?\n5. Catalysts: What could unlock value or trigger a rerating?\n6. Short Opportunities: Are there structural problems being ignored?\n\nFinancial Data: {{ JSON.stringify($('Fetch Financial Metrics').first().json) }}\n\nProvide your analysis in JSON format:\n{\n  \"signal\": \"bullish\" | \"bearish\" | \"neutral\",\n  \"confidence\": 0-100,\n  \"reasoning\": \"Contrarian analysis focusing on what others overlook, potential shorts or deep value plays\"\n}\n\nLook beyond surface metrics for hidden opportunities or risks."
+            },
+            {
+              "name": "stream",
+              "value": false
+            },
+            {
+              "name": "options",
+              "value": {
+                "temperature": 0.4,
+                "top_p": 0.9
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "l2m3n4o5-2222-3333-4444-555555555555",
+      "name": "Michael Burry Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1120,
+        440
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.ollama_host }}/api/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "={{ $json.ollama_model }}"
+            },
+            {
+              "name": "prompt",
+              "value": "You are Peter Lynch, the legendary fund manager. Analyze {{ $json.ticker }} using your 'buy what you know' philosophy:\n\n1. Business Understanding: Is this a simple, understandable business?\n2. Growth Potential: What's the PEG ratio and growth prospects?\n3. Competitive Position: Does it have a strong market position?\n4. Management Quality: Are they shareholder-friendly?\n5. Financial Health: Strong balance sheet and cash flow?\n6. Valuation: Is it reasonably priced for its growth?\n\nFinancial Data: {{ JSON.stringify($('Fetch Financial Metrics').first().json) }}\n\nProvide your analysis in JSON format:\n{\n  \"signal\": \"bullish\" | \"bearish\" | \"neutral\",\n  \"confidence\": 0-100,\n  \"reasoning\": \"Analysis focusing on growth at reasonable price, business simplicity, and 10-bagger potential\"\n}\n\nLook for companies with sustainable competitive advantages and reasonable valuations."
+            },
+            {
+              "name": "stream",
+              "value": false
+            },
+            {
+              "name": "options",
+              "value": {
+                "temperature": 0.3,
+                "top_p": 0.9
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "m3n4o5p6-3333-4444-5555-666666666666",
+      "name": "Peter Lynch Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1120,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse the analyst response and format output\nconst analystType = $input.first().json.analyst_type;\nconst ticker = $input.first().json.ticker;\nconst response = $input.first().json.response;\n\nlet analysisResult;\ntry {\n  analysisResult = JSON.parse(response);\n} catch (error) {\n  analysisResult = {\n    signal: 'neutral',\n    confidence: 0,\n    reasoning: `Error parsing response: ${error.message}`\n  };\n}\n\n// Add metadata\nconst result = {\n  analyst: analystType,\n  ticker: ticker,\n  timestamp: new Date().toISOString(),\n  analysis: {\n    signal: analysisResult.signal || 'neutral',\n    confidence: analysisResult.confidence || 0,\n    reasoning: analysisResult.reasoning || 'No reasoning provided'\n  },\n  metadata: {\n    model: $input.first().json.ollama_model,\n    host: $input.first().json.ollama_host,\n    start_date: $input.first().json.start_date,\n    end_date: $input.first().json.end_date\n  }\n};\n\nreturn result;"
+      },
+      "id": "n4o5p6q7-4444-5555-6666-777777777777",
+      "name": "Format Analyst Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        1340,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json, null, 2) }}",
+        "options": {}
+      },
+      "id": "o5p6q7r8-5555-6666-7777-888888888888",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1560,
+        320
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - Analyst Request": {
+      "main": [
+        [
+          {
+            "node": "Set Analyst Parameters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Analyst Parameters": {
+      "main": [
+        [
+          {
+            "node": "Check Analyst Type - Buffett",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check Analyst Type - Munger",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check Analyst Type - Burry",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Financial Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Analyst Type - Buffett": {
+      "main": [
+        [
+          {
+            "node": "Warren Buffett Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Analyst Type - Munger": {
+      "main": [
+        [
+          {
+            "node": "Charlie Munger Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Analyst Type - Burry": {
+      "main": [
+        [
+          {
+            "node": "Michael Burry Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Warren Buffett Analysis": {
+      "main": [
+        [
+          {
+            "node": "Format Analyst Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Charlie Munger Analysis": {
+      "main": [
+        [
+          {
+            "node": "Format Analyst Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Michael Burry Analysis": {
+      "main": [
+        [
+          {
+            "node": "Format Analyst Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Peter Lynch Analysis": {
+      "main": [
+        [
+          {
+            "node": "Format Analyst Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Analyst Response": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z",
+      "id": "analyst",
+      "name": "Analyst"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "versionId": "1"
+}

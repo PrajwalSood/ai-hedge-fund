@@ -1,0 +1,467 @@
+{
+  "name": "AI Hedge Fund - Data Collection Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "/data/collect",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "dc1a2b3c-1111-2222-3333-444444444444",
+      "name": "Webhook - Data Collection Request",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "data-collect"
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "tickers",
+              "value": "={{ $json.body.tickers || 'AAPL,MSFT,GOOGL' }}"
+            },
+            {
+              "name": "start_date",
+              "value": "={{ $json.body.start_date || $now.minus({months: 12}).toFormat('yyyy-MM-dd') }}"
+            },
+            {
+              "name": "end_date",
+              "value": "={{ $json.body.end_date || $now.toFormat('yyyy-MM-dd') }}"
+            },
+            {
+              "name": "financial_api_key",
+              "value": "={{ $json.body.financial_api_key || '' }}"
+            },
+            {
+              "name": "data_types",
+              "value": "={{ $json.body.data_types || 'prices,fundamentals,news,insider_trades' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "dc2b3c4d-2222-3333-4444-555555555555",
+      "name": "Set Data Parameters",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "dc3c4d5e-3333-4444-5555-666666666666",
+              "name": "currentTicker",
+              "type": "string",
+              "value": "={{ $json.tickers.split(',')[$itemIndex].trim() }}"
+            },
+            {
+              "id": "dc4d5e6f-4444-5555-6666-777777777777",
+              "name": "dataParams",
+              "type": "object",
+              "value": "={{ $json }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "dc5e6f7g-5555-6666-7777-888888888888",
+      "name": "Split by Ticker",
+      "type": "n8n-nodes-base.itemLists",
+      "typeVersion": 3,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.financialdatasets.ai/prices",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $json.dataParams.financial_api_key }}"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "ticker",
+              "value": "={{ $json.currentTicker }}"
+            },
+            {
+              "name": "start_date",
+              "value": "={{ $json.dataParams.start_date }}"
+            },
+            {
+              "name": "end_date",
+              "value": "={{ $json.dataParams.end_date }}"
+            },
+            {
+              "name": "interval",
+              "value": "1d"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "dc6f7g8h-6666-7777-8888-999999999999",
+      "name": "Fetch Price Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        900,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.financialdatasets.ai/fundamentals/ratios",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $json.dataParams.financial_api_key }}"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "ticker",
+              "value": "={{ $json.currentTicker }}"
+            },
+            {
+              "name": "period",
+              "value": "ttm"
+            },
+            {
+              "name": "limit",
+              "value": "10"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "dc7g8h9i-7777-8888-9999-000000000000",
+      "name": "Fetch Fundamental Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        900,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.financialdatasets.ai/news",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $json.dataParams.financial_api_key }}"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "ticker",
+              "value": "={{ $json.currentTicker }}"
+            },
+            {
+              "name": "start_date",
+              "value": "={{ $json.dataParams.start_date }}"
+            },
+            {
+              "name": "end_date",
+              "value": "={{ $json.dataParams.end_date }}"
+            },
+            {
+              "name": "limit",
+              "value": "100"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "dc8h9i0j-8888-9999-0000-111111111111",
+      "name": "Fetch News Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        900,
+        440
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.financialdatasets.ai/insider-trades",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $json.dataParams.financial_api_key }}"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "ticker",
+              "value": "={{ $json.currentTicker }}"
+            },
+            {
+              "name": "start_date",
+              "value": "={{ $json.dataParams.start_date }}"
+            },
+            {
+              "name": "end_date",
+              "value": "={{ $json.dataParams.end_date }}"
+            },
+            {
+              "name": "limit",
+              "value": "500"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "dc9i0j1k-9999-0000-1111-222222222222",
+      "name": "Fetch Insider Trades",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        900,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process and combine all data sources for the current ticker\nconst currentTicker = $input.first().json.currentTicker;\nconst dataParams = $input.first().json.dataParams;\n\n// Get all data from different sources\nconst priceData = $input.all().find(item => item.json.prices || item.json.data)?.json || {};\nconst fundamentalData = $input.all().find(item => item.json.ratios || item.json.fundamentals)?.json || {};\nconst newsData = $input.all().find(item => item.json.news || item.json.articles)?.json || {};\nconst insiderData = $input.all().find(item => item.json.insider_trades || item.json.trades)?.json || {};\n\n// Process price data to calculate technical indicators\nfunction calculateTechnicalIndicators(prices) {\n  if (!prices || !Array.isArray(prices) || prices.length === 0) {\n    return {\n      sma_20: null,\n      sma_50: null,\n      rsi: null,\n      volatility: null\n    };\n  }\n  \n  const closePrices = prices.map(p => parseFloat(p.close)).filter(p => !isNaN(p));\n  \n  if (closePrices.length === 0) {\n    return {\n      sma_20: null,\n      sma_50: null,\n      rsi: null,\n      volatility: null\n    };\n  }\n  \n  // Simple Moving Averages\n  const sma20 = closePrices.length >= 20 ? \n    closePrices.slice(-20).reduce((sum, price) => sum + price, 0) / 20 : null;\n  const sma50 = closePrices.length >= 50 ? \n    closePrices.slice(-50).reduce((sum, price) => sum + price, 0) / 50 : null;\n  \n  // Simple RSI calculation (14-period)\n  let rsi = null;\n  if (closePrices.length >= 15) {\n    const changes = [];\n    for (let i = 1; i < closePrices.length; i++) {\n      changes.push(closePrices[i] - closePrices[i-1]);\n    }\n    \n    const gains = changes.slice(-14).filter(c => c > 0).reduce((sum, g) => sum + g, 0) / 14;\n    const losses = Math.abs(changes.slice(-14).filter(c => c < 0).reduce((sum, l) => sum + l, 0)) / 14;\n    \n    if (losses !== 0) {\n      const rs = gains / losses;\n      rsi = 100 - (100 / (1 + rs));\n    }\n  }\n  \n  // Volatility (standard deviation of returns)\n  let volatility = null;\n  if (closePrices.length >= 30) {\n    const returns = [];\n    for (let i = 1; i < closePrices.length; i++) {\n      returns.push((closePrices[i] - closePrices[i-1]) / closePrices[i-1]);\n    }\n    \n    const avgReturn = returns.reduce((sum, r) => sum + r, 0) / returns.length;\n    const variance = returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / returns.length;\n    volatility = Math.sqrt(variance) * Math.sqrt(252); // Annualized volatility\n  }\n  \n  return {\n    sma_20: sma20,\n    sma_50: sma50,\n    rsi: rsi,\n    volatility: volatility,\n    current_price: closePrices[closePrices.length - 1]\n  };\n}\n\n// Process news sentiment (simple keyword-based approach)\nfunction processNewsSentiment(news) {\n  if (!news || !Array.isArray(news.articles || news.data || news) || (news.articles || news.data || news).length === 0) {\n    return {\n      sentiment_score: 0,\n      news_count: 0,\n      positive_news: 0,\n      negative_news: 0\n    };\n  }\n  \n  const articles = news.articles || news.data || news;\n  const positiveWords = ['growth', 'profit', 'increase', 'strong', 'beat', 'exceed', 'positive', 'bullish', 'upgrade'];\n  const negativeWords = ['loss', 'decline', 'decrease', 'weak', 'miss', 'disappoint', 'negative', 'bearish', 'downgrade'];\n  \n  let positiveCount = 0;\n  let negativeCount = 0;\n  \n  articles.forEach(article => {\n    const text = (article.title + ' ' + (article.summary || article.description || '')).toLowerCase();\n    \n    const positiveMatches = positiveWords.filter(word => text.includes(word)).length;\n    const negativeMatches = negativeWords.filter(word => text.includes(word)).length;\n    \n    if (positiveMatches > negativeMatches) {\n      positiveCount++;\n    } else if (negativeMatches > positiveMatches) {\n      negativeCount++;\n    }\n  });\n  \n  const totalSentimentArticles = positiveCount + negativeCount;\n  const sentimentScore = totalSentimentArticles > 0 ? \n    (positiveCount - negativeCount) / totalSentimentArticles : 0;\n  \n  return {\n    sentiment_score: sentimentScore,\n    news_count: articles.length,\n    positive_news: positiveCount,\n    negative_news: negativeCount\n  };\n}\n\n// Process insider trading data\nfunction processInsiderTrades(insiderTrades) {\n  if (!insiderTrades || !Array.isArray(insiderTrades.trades || insiderTrades.data || insiderTrades) || (insiderTrades.trades || insiderTrades.data || insiderTrades).length === 0) {\n    return {\n      total_trades: 0,\n      buy_trades: 0,\n      sell_trades: 0,\n      net_insider_sentiment: 0,\n      total_value: 0\n    };\n  }\n  \n  const trades = insiderTrades.trades || insiderTrades.data || insiderTrades;\n  let buyTrades = 0;\n  let sellTrades = 0;\n  let totalValue = 0;\n  \n  trades.forEach(trade => {\n    const value = parseFloat(trade.value || trade.transaction_value || 0);\n    totalValue += Math.abs(value);\n    \n    if (trade.transaction_type && trade.transaction_type.toLowerCase().includes('purchase')) {\n      buyTrades++;\n    } else if (trade.transaction_type && trade.transaction_type.toLowerCase().includes('sale')) {\n      sellTrades++;\n    }\n  });\n  \n  const netSentiment = (buyTrades + sellTrades) > 0 ? \n    (buyTrades - sellTrades) / (buyTrades + sellTrades) : 0;\n  \n  return {\n    total_trades: trades.length,\n    buy_trades: buyTrades,\n    sell_trades: sellTrades,\n    net_insider_sentiment: netSentiment,\n    total_value: totalValue\n  };\n}\n\n// Combine all processed data\nconst technicalIndicators = calculateTechnicalIndicators(priceData.data || priceData.prices || priceData);\nconst newsSentiment = processNewsSentiment(newsData);\nconst insiderAnalysis = processInsiderTrades(insiderData);\n\nconst combinedData = {\n  ticker: currentTicker,\n  timestamp: new Date().toISOString(),\n  data_period: {\n    start_date: dataParams.start_date,\n    end_date: dataParams.end_date\n  },\n  price_data: {\n    current_price: technicalIndicators.current_price,\n    sma_20: technicalIndicators.sma_20,\n    sma_50: technicalIndicators.sma_50,\n    rsi: technicalIndicators.rsi,\n    volatility: technicalIndicators.volatility,\n    raw_data_points: Array.isArray(priceData.data || priceData.prices || priceData) ? (priceData.data || priceData.prices || priceData).length : 0\n  },\n  fundamental_data: {\n    pe_ratio: fundamentalData.pe_ratio || null,\n    pb_ratio: fundamentalData.pb_ratio || null,\n    debt_to_equity: fundamentalData.debt_to_equity || null,\n    roe: fundamentalData.roe || fundamentalData.return_on_equity || null,\n    operating_margin: fundamentalData.operating_margin || null,\n    current_ratio: fundamentalData.current_ratio || null,\n    raw_metrics_count: Object.keys(fundamentalData).length\n  },\n  news_sentiment: newsSentiment,\n  insider_trading: insiderAnalysis,\n  data_quality: {\n    price_data_available: technicalIndicators.current_price !== null,\n    fundamental_data_available: Object.keys(fundamentalData).length > 0,\n    news_data_available: newsSentiment.news_count > 0,\n    insider_data_available: insiderAnalysis.total_trades > 0,\n    overall_score: [\n      technicalIndicators.current_price !== null,\n      Object.keys(fundamentalData).length > 0,\n      newsSentiment.news_count > 0,\n      insiderAnalysis.total_trades > 0\n    ].filter(Boolean).length / 4\n  }\n};\n\nreturn combinedData;"
+      },
+      "id": "dc0j1k2l-0000-1111-2222-333333333333",
+      "name": "Process and Combine Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "combineByPosition",
+        "options": {}
+      },
+      "id": "dc1k2l3m-1111-2222-3333-444444444444",
+      "name": "Merge Ticker Data",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [
+        1340,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Aggregate all ticker data into final dataset\nconst allTickerData = $input.all().map(item => item.json);\nconst dataParams = $('Set Data Parameters').first().json;\n\n// Calculate portfolio-level metrics\nconst portfolioMetrics = {\n  total_tickers: allTickerData.length,\n  data_quality_avg: allTickerData.reduce((sum, ticker) => sum + ticker.data_quality.overall_score, 0) / allTickerData.length,\n  avg_volatility: allTickerData\n    .filter(ticker => ticker.price_data.volatility !== null)\n    .reduce((sum, ticker) => sum + ticker.price_data.volatility, 0) / \n    allTickerData.filter(ticker => ticker.price_data.volatility !== null).length,\n  avg_sentiment: allTickerData.reduce((sum, ticker) => sum + ticker.news_sentiment.sentiment_score, 0) / allTickerData.length,\n  total_news_articles: allTickerData.reduce((sum, ticker) => sum + ticker.news_sentiment.news_count, 0),\n  total_insider_trades: allTickerData.reduce((sum, ticker) => sum + ticker.insider_trading.total_trades, 0)\n};\n\n// Create correlation matrix (simplified)\nconst correlationMatrix = {};\nallTickerData.forEach(ticker1 => {\n  correlationMatrix[ticker1.ticker] = {};\n  allTickerData.forEach(ticker2 => {\n    // Simplified correlation (in real implementation, you'd calculate actual correlation)\n    if (ticker1.ticker === ticker2.ticker) {\n      correlationMatrix[ticker1.ticker][ticker2.ticker] = 1.0;\n    } else {\n      // Mock correlation based on volatility similarity\n      const vol1 = ticker1.price_data.volatility || 0.2;\n      const vol2 = ticker2.price_data.volatility || 0.2;\n      correlationMatrix[ticker1.ticker][ticker2.ticker] = Math.max(0, 1 - Math.abs(vol1 - vol2) * 2);\n    }\n  });\n});\n\nconst finalDataset = {\n  collection_timestamp: new Date().toISOString(),\n  data_period: {\n    start_date: dataParams.start_date,\n    end_date: dataParams.end_date,\n    requested_tickers: dataParams.tickers.split(',').map(t => t.trim()),\n    data_types: dataParams.data_types.split(',').map(t => t.trim())\n  },\n  portfolio_metrics: portfolioMetrics,\n  ticker_data: allTickerData,\n  correlation_matrix: correlationMatrix,\n  data_summary: {\n    successful_collections: allTickerData.filter(t => t.data_quality.overall_score > 0.5).length,\n    failed_collections: allTickerData.filter(t => t.data_quality.overall_score <= 0.5).length,\n    avg_data_completeness: portfolioMetrics.data_quality_avg,\n    collection_warnings: allTickerData\n      .filter(t => t.data_quality.overall_score < 0.75)\n      .map(t => `${t.ticker}: Low data quality (${(t.data_quality.overall_score * 100).toFixed(1)}%)`)\n  },\n  usage_stats: {\n    api_calls_made: allTickerData.length * 4, // Approximate API calls (price, fundamental, news, insider)\n    data_points_collected: allTickerData.reduce((sum, ticker) => \n      sum + ticker.price_data.raw_data_points + \n      ticker.fundamental_data.raw_metrics_count + \n      ticker.news_sentiment.news_count + \n      ticker.insider_trading.total_trades, 0),\n    processing_time_estimate: allTickerData.length * 2 // Rough estimate in seconds\n  }\n};\n\nreturn finalDataset;"
+      },
+      "id": "dc2l3m4n-2222-3333-4444-555555555555",
+      "name": "Aggregate Final Dataset",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        1560,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json, null, 2) }}",
+        "options": {}
+      },
+      "id": "dc3m4n5o-3333-4444-5555-666666666666",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1780,
+        380
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - Data Collection Request": {
+      "main": [
+        [
+          {
+            "node": "Set Data Parameters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Data Parameters": {
+      "main": [
+        [
+          {
+            "node": "Split by Ticker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split by Ticker": {
+      "main": [
+        [
+          {
+            "node": "Fetch Price Data",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Fundamental Data",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch News Data",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Insider Trades",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Price Data": {
+      "main": [
+        [
+          {
+            "node": "Process and Combine Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Fundamental Data": {
+      "main": [
+        [
+          {
+            "node": "Process and Combine Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch News Data": {
+      "main": [
+        [
+          {
+            "node": "Process and Combine Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Insider Trades": {
+      "main": [
+        [
+          {
+            "node": "Process and Combine Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process and Combine Data": {
+      "main": [
+        [
+          {
+            "node": "Merge Ticker Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Ticker Data": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Final Dataset",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Final Dataset": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z",
+      "id": "data-collection",
+      "name": "Data Collection"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "versionId": "1"
+}
